@@ -25,9 +25,10 @@ public class Auth {
     private LocalDateTime createdAt;
 
     // Конструкторы
-    public AuthInfo() {}
+    public Auth() {
+    }
 
-    public AuthInfo(User user, String refreshToken, LocalDateTime expiresAt) {
+    public Auth(User user, String refreshToken, LocalDateTime expiresAt) {
         this.user = user;
         this.refreshToken = refreshToken;
         this.expiresAt = expiresAt;
@@ -55,12 +56,12 @@ public class Auth {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AuthInfo authInfo = (AuthInfo) o;
-        return Objects.equals(id, authInfo.id) &&
-                Objects.equals(user, authInfo.user) &&
-                Objects.equals(refreshToken, authInfo.refreshToken) &&
-                Objects.equals(expiresAt, authInfo.expiresAt) &&
-                Objects.equals(createdAt, authInfo.createdAt);
+        Auth auth = (Auth) o;
+        return Objects.equals(id, auth.id) &&
+                Objects.equals(user, auth.user) &&
+                Objects.equals(refreshToken, auth.refreshToken) &&
+                Objects.equals(expiresAt, auth.expiresAt) &&
+                Objects.equals(createdAt, auth.createdAt);
     }
 
     @Override
@@ -70,9 +71,10 @@ public class Auth {
 
     @Override
     public String toString() {
-        return "AuthInfo{" +
+        return "Auth{" +
                 "id=" + id +
                 ", user=" + (user != null ? user.getUsername() : "null") +
+                ", refreshToken='" + refreshToken + '\'' +
                 ", expiresAt=" + expiresAt +
                 ", createdAt=" + createdAt +
                 '}';

@@ -33,9 +33,6 @@ public class User {
 
     public User() {}
 
-    public User() {
-    }
-
     public User(Integer id, String username, String password, String firstName,
                 String lastName, String phone, UserRole role, String image) {
         this.id = id;

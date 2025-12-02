@@ -1,50 +1,57 @@
 package pro.sky.AdBoard.controller;
 
-import pro.sky.AdBoard.dto.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import pro.sky.AdBoard.dto.*;
+import pro.sky.AdBoard.service.AdService;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/ads")
+@RequiredArgsConstructor
 public class AdController {
+
+    private final AdService adService;
 
     @GetMapping
     public ResponseEntity<AdsDto> getAllAds() {
-        AdsDto adsDto = new AdsDto();
-        return ResponseEntity.ok(adsDto);
+        return ResponseEntity.ok(adService.getAllAds());
     }
 
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<AdDto> addAd(
             @RequestPart("properties") CreateOrUpdateAdDto properties,
-            @RequestPart("image") MultipartFile image) {
-        AdDto adDto = new AdDto();
+            @RequestPart("image") MultipartFile image) throws IOException
+    {
+        AdDto adDto = adService.addAd(properties, image.getBytes(), image.getContentType());
         return ResponseEntity.status(201).body(adDto);
     }
 
     @GetMapping("/{id}/comments")
     public ResponseEntity<CommentsDto> getComments(@PathVariable("id") Integer id) {
-        CommentsDto commentsDto = new CommentsDto();
-        return ResponseEntity.ok(commentsDto);
+        return ResponseEntity.ok(adService.getComments(id));
     }
 
     @PostMapping("/{id}/comments")
     public ResponseEntity<CommentDto> addComment(
             @PathVariable("id") Integer id,
             @RequestBody CreateOrUpdateCommentDto createOrUpdateCommentDto) {
-        CommentDto commentDto = new CommentDto();
+        CommentDto commentDto = adService.addComment(id, createOrUpdateCommentDto);
         return ResponseEntity.ok(commentDto);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ExtendedAdDto> getAds(@PathVariable("id") Integer id) {
-        ExtendedAdDto extendedAdDto = new ExtendedAdDto();
+        ExtendedAdDto extendedAdDto = adService.getAd(id);
         return ResponseEntity.ok(extendedAdDto);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> removeAd(@PathVariable("id") Integer id) {
+        adService.removeAd(id);
         return ResponseEntity.noContent().build();
     }
 
@@ -52,7 +59,7 @@ public class AdController {
     public ResponseEntity<AdDto> updateAds(
             @PathVariable("id") Integer id,
             @RequestBody CreateOrUpdateAdDto createOrUpdateAdDto) {
-        AdDto adDto = new AdDto();
+        AdDto adDto = adService.updateAd(id, createOrUpdateAdDto);
         return ResponseEntity.ok(adDto);
     }
 
@@ -60,6 +67,7 @@ public class AdController {
     public ResponseEntity<Void> deleteComment(
             @PathVariable("adId") Integer adId,
             @PathVariable("commentId") Integer commentId) {
+        adService.deleteComment(adId, commentId);
         return ResponseEntity.ok().build();
     }
 
@@ -68,20 +76,21 @@ public class AdController {
             @PathVariable("adId") Integer adId,
             @PathVariable("commentId") Integer commentId,
             @RequestBody CreateOrUpdateCommentDto createOrUpdateCommentDto) {
-        CommentDto commentDto = new CommentDto();
+        CommentDto commentDto = adService.updateComment(adId, commentId, createOrUpdateCommentDto);
         return ResponseEntity.ok(commentDto);
     }
 
     @GetMapping("/me")
     public ResponseEntity<AdsDto> getAdsMe() {
-        AdsDto adsDto = new AdsDto();
-        return ResponseEntity.ok(adsDto);
+        return ResponseEntity.ok(adService.getUserAds());
     }
 
     @PatchMapping(value = "/{id}/image", consumes = "multipart/form-data")
     public ResponseEntity<byte[]> updateImage(
             @PathVariable("id") Integer id,
-            @RequestParam("image") MultipartFile image) {
-        return ResponseEntity.ok(new byte[0]);
+            @RequestParam("image") MultipartFile image) throws IOException
+    {
+        byte[] bytes = adService.updateAdImage(id, image.getBytes(), image.getContentType());
+        return ResponseEntity.ok(bytes);
     }
 }
