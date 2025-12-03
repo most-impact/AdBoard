@@ -1,32 +1,29 @@
 package pro.sky.AdBoard.service;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pro.sky.AdBoard.dto.*;
 import pro.sky.AdBoard.mapper.AdMapper;
 import pro.sky.AdBoard.mapper.CommentMapper;
 import pro.sky.AdBoard.model.Ad;
 import pro.sky.AdBoard.model.Comment;
 import pro.sky.AdBoard.model.User;
+import pro.sky.AdBoard.model.UserRole;
 import pro.sky.AdBoard.repository.AdRepository;
 import pro.sky.AdBoard.repository.CommentRepository;
 import pro.sky.AdBoard.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
-@Slf4j
 public class AdServiceImpl implements AdService {
-
-    private static final String USER_NOT_FOUND = "User not found";
 
     private final AdRepository adRepository;
     private final CommentRepository commentRepository;
@@ -34,139 +31,141 @@ public class AdServiceImpl implements AdService {
     private final AdMapper adMapper;
     private final CommentMapper commentMapper;
 
-    private User getCurrentUserEntity() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UsernameNotFoundException(USER_NOT_FOUND);
-        }
-
-        String username = authentication.getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
-    }
-
     @Override
+    @Transactional(readOnly = true)
     public AdsDto getAllAds() {
-        log.info("Getting all ads");
         List<Ad> ads = adRepository.findAll();
         return adMapper.toAdsDto(ads);
     }
 
     @Override
+    @Transactional
     public AdDto addAd(CreateOrUpdateAdDto properties, byte[] image, String contentType) {
         User author = getCurrentUserEntity();
-        log.info("Adding new ad, author: {}", author.getUsername());
-
-        // Пока просто делаем заглушку пути к картинке
-        String imagePath = "ad-" + author.getId() + "-" + System.currentTimeMillis();
+        String imagePath = saveImage(image, contentType);
+        
         Ad ad = adMapper.fromCreateOrUpdateAdDto(properties, author, imagePath);
         ad.setCreatedAt(LocalDateTime.now());
-
-        Ad saved = adRepository.save(ad);
-        return adMapper.toAdDto(saved);
+        
+        adRepository.save(ad);
+        return adMapper.toAdDto(ad);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CommentsDto getComments(Integer adId) {
-        log.info("Getting comments for ad id={}", adId);
-        Ad ad = adRepository.findById(adId)
-                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
+        Ad ad = getAdEntity(adId);
         List<Comment> comments = commentRepository.findAllByAd(ad);
         return commentMapper.toCommentsDto(comments);
     }
 
     @Override
+    @Transactional
     public CommentDto addComment(Integer adId, CreateOrUpdateCommentDto createOrUpdateCommentDto) {
+        Ad ad = getAdEntity(adId);
         User author = getCurrentUserEntity();
-        log.info("Adding comment to ad id={} by user={}", adId, author.getUsername());
-
-        Ad ad = adRepository.findById(adId)
-                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
-
+        
         Comment comment = commentMapper.fromCreateDto(createOrUpdateCommentDto, ad, author);
-        Comment saved = commentRepository.save(comment);
-        return commentMapper.toCommentDto(saved);
+        commentRepository.save(comment);
+        
+        return commentMapper.toCommentDto(comment);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ExtendedAdDto getAd(Integer id) {
-        log.info("Getting ad id={}", id);
-        Ad ad = adRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
+        Ad ad = getAdEntity(id);
         return adMapper.toExtendedAdDto(ad);
     }
 
     @Override
+    @Transactional
     public void removeAd(Integer id) {
-        log.info("Removing ad id={}", id);
-        if (!adRepository.existsById(id)) {
-            throw new IllegalArgumentException("Ad not found");
-        }
-        adRepository.deleteById(id);
+        Ad ad = getAdEntity(id);
+        checkPermission(ad.getAuthor());
+        commentRepository.deleteAll(commentRepository.findAllByAd(ad)); // cascade delete comments manually if not set in DB
+        adRepository.delete(ad);
     }
 
     @Override
+    @Transactional
     public AdDto updateAd(Integer id, CreateOrUpdateAdDto createOrUpdateAdDto) {
-        log.info("Updating ad id={}", id);
-        Ad ad = adRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
-
+        Ad ad = getAdEntity(id);
+        checkPermission(ad.getAuthor());
         adMapper.updateAdFromDto(createOrUpdateAdDto, ad);
-        Ad saved = adRepository.save(ad);
-        return adMapper.toAdDto(saved);
+        adRepository.save(ad);
+        return adMapper.toAdDto(ad);
     }
 
     @Override
+    @Transactional
     public void deleteComment(Integer adId, Integer commentId) {
-        log.info("Deleting comment id={} for ad id={}", commentId, adId);
-
-        Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
-
+        Comment comment = getCommentEntity(commentId);
         if (!comment.getAd().getPk().equals(adId)) {
-            throw new IllegalArgumentException("Comment does not belong to this ad");
+             throw new IllegalArgumentException("Comment does not belong to this ad");
         }
-
+        checkPermission(comment.getAuthor());
         commentRepository.delete(comment);
     }
 
     @Override
+    @Transactional
     public CommentDto updateComment(Integer adId, Integer commentId, CreateOrUpdateCommentDto createOrUpdateCommentDto) {
-        log.info("Updating comment id={} for ad id={}", commentId, adId);
-
-        Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
-
-        if (!comment.getAd().getPk().equals(adId)) {
-            throw new IllegalArgumentException("Comment does not belong to this ad");
+        Comment comment = getCommentEntity(commentId);
+         if (!comment.getAd().getPk().equals(adId)) {
+             throw new IllegalArgumentException("Comment does not belong to this ad");
         }
-
+        checkPermission(comment.getAuthor());
         commentMapper.updateCommentFromDto(createOrUpdateCommentDto, comment);
-        Comment saved = commentRepository.save(comment);
-        return commentMapper.toCommentDto(saved);
+        commentRepository.save(comment);
+        return commentMapper.toCommentDto(comment);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public AdsDto getUserAds() {
-        User user = getCurrentUserEntity();
-        log.info("Getting ads for user={}", user.getUsername());
-
-        List<Ad> ads = adRepository.findAllByAuthor(user);
+        User author = getCurrentUserEntity();
+        List<Ad> ads = adRepository.findAllByAuthor(author);
         return adMapper.toAdsDto(ads);
     }
 
     @Override
+    @Transactional
     public byte[] updateAdImage(Integer id, byte[] image, String contentType) {
-        log.info("Updating image for ad id={}", id);
-        Ad ad = adRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
-
-        // Заглушка пути к картинке
-        String imagePath = "ad-" + ad.getPk() + "-image";
+        Ad ad = getAdEntity(id);
+        checkPermission(ad.getAuthor());
+        String imagePath = saveImage(image, contentType);
         ad.setImage(imagePath);
         adRepository.save(ad);
+        return image; // Returning the uploaded image bytes as confirmation
+    }
 
-        // Возвращаем те же байты, которые получили (подходит под контракт контроллера)
-        return image;
+    private User getCurrentUserEntity() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    private Ad getAdEntity(Integer id) {
+        return adRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
+    }
+
+    private Comment getCommentEntity(Integer id) {
+        return commentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Comment not found"));
+    }
+
+    private void checkPermission(User owner) {
+        User currentUser = getCurrentUserEntity();
+        if (!currentUser.getId().equals(owner.getId()) && currentUser.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("You do not have permission to modify this resource");
+        }
+    }
+    
+    private String saveImage(byte[] image, String contentType) {
+        // Placeholder for image saving logic
+        return "/images/" + UUID.randomUUID() + (contentType != null && contentType.contains("png") ? ".png" : ".jpg");
     }
 }

@@ -1,12 +1,11 @@
 package pro.sky.AdBoard.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pro.sky.AdBoard.dto.NewPasswordDto;
 import pro.sky.AdBoard.dto.UpdateUserDto;
 import pro.sky.AdBoard.dto.UserDto;
@@ -14,35 +13,26 @@ import pro.sky.AdBoard.mapper.UserMapper;
 import pro.sky.AdBoard.model.User;
 import pro.sky.AdBoard.repository.UserRepository;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class UserServiceImpl implements UserService {
-
-    private static final String USER_NOT_FOUND = "User not found";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
 
-    private User getCurrentUserEntity() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UsernameNotFoundException(USER_NOT_FOUND);
-        }
-
-        String username = authentication.getName();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
-    }
-
     @Override
+    @Transactional
     public void updatePassword(NewPasswordDto newPasswordDto) {
         User user = getCurrentUserEntity();
-        log.info("Updating password for user: {}", user.getUsername());
-
+        
         if (!passwordEncoder.matches(newPasswordDto.getCurrentPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Current password is incorrect");
+            throw new IllegalArgumentException("Invalid current password");
         }
 
         user.setPassword(passwordEncoder.encode(newPasswordDto.getNewPassword()));
@@ -50,37 +40,48 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserDto getCurrentUser() {
         User user = getCurrentUserEntity();
-        log.info("Getting current user: {}", user.getUsername());
         return userMapper.toUserDto(user);
     }
 
     @Override
+    @Transactional
     public UpdateUserDto updateUser(UpdateUserDto updateUserDto) {
         User user = getCurrentUserEntity();
-        log.info("Updating user profile for: {}", user.getUsername());
-
         userMapper.updateUserFromDto(updateUserDto, user);
         userRepository.save(user);
-
-        // Контроллер ждёт UpdateUserDto, поэтому возвращаем DTO с актуальными данными
-        UpdateUserDto result = new UpdateUserDto();
-        result.setFirstName(user.getFirstName());
-        result.setLastName(user.getLastName());
-        result.setPhone(user.getPhone());
-        return result;
+        return updateUserDto;
     }
 
     @Override
+    @Transactional
     public void updateUserImage(byte[] image, String contentType) {
         User user = getCurrentUserEntity();
-        log.info("Updating image for user: {}", user.getUsername());
-
-        // Здесь можно реализовать сохранение картинки в файловую систему/БД.
-        // Пока просто сохраняем "путь" как заглушку.
-        String imagePath = "user-" + user.getId() + "-avatar";
-        user.setImage(imagePath);
+        // Simple file saving logic (simulated or real local storage)
+        String filename = "user_" + user.getId() + "_" + UUID.randomUUID() + getExtension(contentType);
+        // In a real app, save to a configured directory. Here we just simulate setting the path.
+        // Assuming there's a static resource handler or similar.
+        // For now, let's just save the filename to the DB.
+        
+        // TODO: Implement actual file writing if needed.
+        // For now, I will just set the reference.
+        user.setImage("/images/" + filename);
         userRepository.save(user);
+    }
+
+    private User getCurrentUserEntity() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    private String getExtension(String contentType) {
+        if (contentType == null) return ".jpg";
+        if (contentType.contains("png")) return ".png";
+        if (contentType.contains("jpeg") || contentType.contains("jpg")) return ".jpg";
+        return ".jpg";
     }
 }

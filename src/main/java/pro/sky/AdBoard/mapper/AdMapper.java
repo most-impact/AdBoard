@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
-public class AdMapper {
+public class  AdMapper {
 
     public AdDto toAdDto(Ad ad) {
         AdDto dto = new AdDto();

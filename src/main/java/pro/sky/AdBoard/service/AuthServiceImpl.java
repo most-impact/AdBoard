@@ -1,9 +1,9 @@
 package pro.sky.AdBoard.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pro.sky.AdBoard.dto.LoginDto;
 import pro.sky.AdBoard.dto.RegisterDto;
 import pro.sky.AdBoard.mapper.UserMapper;
@@ -12,30 +12,30 @@ import pro.sky.AdBoard.repository.UserRepository;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
-    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
 
     @Override
+    @Transactional
     public void register(RegisterDto registerDto) {
-        log.info("Registering new user: {}", registerDto.getUsername());
-
         if (userRepository.findByUsername(registerDto.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists");
+            throw new IllegalArgumentException("User with this username already exists");
         }
 
-        String encodedPassword = passwordEncoder.encode(registerDto.getPassword());
-        User user = userMapper.fromRegisterDto(registerDto, encodedPassword);
+        User user = userMapper.fromRegisterDto(registerDto, passwordEncoder.encode(registerDto.getPassword()));
         userRepository.save(user);
     }
 
     @Override
     public void login(LoginDto loginDto) {
-        log.info("Login attempt for user: {}", loginDto.getUsername());
-        // Здесь можно будет реализовать реальную аутентификацию и выдачу JWT.
-        // На этом этапе достаточно того, что есть register + сохранение в БД.
+        User user = userRepository.findByUsername(loginDto.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (!passwordEncoder.matches(loginDto.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Invalid password");
+        }
     }
 }
