@@ -24,6 +24,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final ImageService imageService;
 
     private User getCurrentUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -64,7 +65,6 @@ public class UserServiceImpl implements UserService {
         userMapper.updateUserFromDto(updateUserDto, user);
         userRepository.save(user);
 
-        // Контроллер ждёт UpdateUserDto, поэтому возвращаем DTO с актуальными данными
         UpdateUserDto result = new UpdateUserDto();
         result.setFirstName(user.getFirstName());
         result.setLastName(user.getLastName());
@@ -77,10 +77,10 @@ public class UserServiceImpl implements UserService {
         User user = getCurrentUserEntity();
         log.info("Updating image for user: {}", user.getUsername());
 
-        // Здесь можно реализовать сохранение картинки в файловую систему/БД.
-        // Пока просто сохраняем "путь" как заглушку.
-        String imagePath = "user-" + user.getId() + "-avatar";
-        user.setImage(imagePath);
+        String filename = imageService.saveImage(image, contentType);
+        // путь должен начинаться с корня
+        user.setImage("/images/" + filename);
+
         userRepository.save(user);
     }
 }

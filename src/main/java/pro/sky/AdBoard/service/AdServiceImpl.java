@@ -1,12 +1,12 @@
 package pro.sky.AdBoard.service;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pro.sky.AdBoard.dto.*;
 import pro.sky.AdBoard.mapper.AdMapper;
 import pro.sky.AdBoard.mapper.CommentMapper;
@@ -17,12 +17,11 @@ import pro.sky.AdBoard.repository.AdRepository;
 import pro.sky.AdBoard.repository.CommentRepository;
 import pro.sky.AdBoard.repository.UserRepository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
+@Transactional
 @Slf4j
 public class AdServiceImpl implements AdService {
 
@@ -33,6 +32,7 @@ public class AdServiceImpl implements AdService {
     private final UserRepository userRepository;
     private final AdMapper adMapper;
     private final CommentMapper commentMapper;
+    private final ImageService imageService;
 
     private User getCurrentUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -57,10 +57,10 @@ public class AdServiceImpl implements AdService {
         User author = getCurrentUserEntity();
         log.info("Adding new ad, author: {}", author.getUsername());
 
-        // Пока просто делаем заглушку пути к картинке
-        String imagePath = "ad-" + author.getId() + "-" + System.currentTimeMillis();
+        String filename = imageService.saveImage(image, contentType);
+        String imagePath = "/images/" + filename;
+
         Ad ad = adMapper.fromCreateOrUpdateAdDto(properties, author, imagePath);
-        ad.setCreatedAt(LocalDateTime.now());
 
         Ad saved = adRepository.save(ad);
         return adMapper.toAdDto(saved);
@@ -161,12 +161,12 @@ public class AdServiceImpl implements AdService {
         Ad ad = adRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Ad not found"));
 
-        // Заглушка пути к картинке
-        String imagePath = "ad-" + ad.getPk() + "-image";
+        String filename = imageService.saveImage(image, contentType);
+        String imagePath = "/images/" + filename;
+
         ad.setImage(imagePath);
         adRepository.save(ad);
 
-        // Возвращаем те же байты, которые получили (подходит под контракт контроллера)
         return image;
     }
 }
