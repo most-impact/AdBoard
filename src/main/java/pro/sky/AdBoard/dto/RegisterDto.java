@@ -1,7 +1,6 @@
 package pro.sky.AdBoard.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 @Schema(description = "DTO for user registration")
@@ -23,9 +22,8 @@ public class RegisterDto {
     @Size(min = 2, max = 16, message = "Last name must be between 2 and 16 characters")
     private String lastName;
 
-    @Schema(description = "Phone number", pattern = "\\+7\\s?\\(?\\d{3}\\)?\\s?\\d{3}-?\\d{2}-?\\d{2}", example = "+79991234567")
-    @Pattern(regexp = "\\+7\\s?\\(?\\d{3}\\)?\\s?\\d{3}-?\\d{2}-?\\d{2}", message = "Phone number must match pattern +7 XXX XXX-XX-XX")
-    private String phone;
+    @Schema(description = "Phone number", example = "+79991234567")
+    private String phone; // Убрали @Pattern валидацию
 
     @Schema(description = "User role", allowableValues = {"USER", "ADMIN"}, example = "USER")
     private String role;
